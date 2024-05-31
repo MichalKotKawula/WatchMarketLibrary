@@ -1,0 +1,4 @@
+# Node modules directory
+node_modules/
+.env
+watchmarket-3bfeb-50164081e136.json
