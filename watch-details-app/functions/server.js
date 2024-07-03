@@ -1,19 +1,17 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const serverless = require('serverless-http');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
-app.use(express.json()); // To parse JSON bodies
+const router = express.Router();
 
-const PORT = 3000;
+app.use(cors({ origin: 'https://watchmarketracker.netlify.app' || 'http://localhost:4000' }));
+app.use(express.json());
 
-// Initialize Firebase Admin with service account credentials
-var serviceAccount = require('./watchmarket-3bfeb-50164081e136.json');
-
-//path/to/your-firebase-adminsdk-key
+var serviceAccount = require('../watchmarket-3bfeb-50164081e136.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -22,7 +20,7 @@ admin.initializeApp({
 
 const db = admin.database();
 
-app.get('/getWatchDetails', async (req, res) => {
+router.get('/getWatchDetails', async (req, res) => {
   const { link } = req.query;
   if (!link) {
     return res.status(400).send('Link is required');
@@ -47,7 +45,7 @@ app.get('/getWatchDetails', async (req, res) => {
   }
 });
 
-app.post('/sendWatchDetails', async (req, res) => {
+router.post('/sendWatchDetails', async (req, res) => {
   const watchData = req.body;
   if (!watchData || !watchData.id) {
     return res.status(400).send('Watch data with a valid ID is required');
@@ -62,8 +60,7 @@ app.post('/sendWatchDetails', async (req, res) => {
   }
 });
 
-
-app.get('/getWatchesByBrandAndModel', async (req, res) => {
+router.get('/getWatchesByBrandAndModel', async (req, res) => {
   const { brand, model } = req.query;
   if (!brand || !model) {
     return res.status(400).send('Brand and model are required');
@@ -77,7 +74,6 @@ app.get('/getWatchesByBrandAndModel', async (req, res) => {
       return res.status(404).send('No watches found');
     }
 
-    // Filter watches where the model string contains the model query parameter (case-insensitive)
     const filteredWatches = Object.values(watches).filter(watch => {
       return watch.model && watch.model.toLowerCase().includes(model.toLowerCase());
     });
@@ -89,7 +85,7 @@ app.get('/getWatchesByBrandAndModel', async (req, res) => {
       return {
         id: watch.id,
         price_formated: watch.price_formated,
-        creationDate: watch.creationDate || 'Not available', // Include creationDate or a placeholder
+        creationDate: watch.creationDate || 'Not available',
       };
     });
 
@@ -101,13 +97,12 @@ app.get('/getWatchesByBrandAndModel', async (req, res) => {
 });
 
 // Chatbot endpoint
-app.post('/api/message', async (req, res) => {
+router.post('/api/message', async (req, res) => {
   const userInput = req.body.message;
-
 
   try {
     const response = await axios.post('https://api.openai.com/v1/completions', {
-      model: 'gpt-3.5-turbo-instruct', 
+      model: 'gpt-3.5-turbo-instruct',
       prompt: `Suggest a watch type for the user based on the following preferences: ${userInput}`,
       max_tokens: 256
     }, {
@@ -124,9 +119,6 @@ app.post('/api/message', async (req, res) => {
   }
 });
 
-
-
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Use the router and set up the serverless handler
+app.use('/.netlify/functions/server', router);
+module.exports.handler = serverless(app);
